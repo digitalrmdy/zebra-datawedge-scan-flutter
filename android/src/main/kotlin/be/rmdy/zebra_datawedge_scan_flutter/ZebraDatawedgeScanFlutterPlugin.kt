@@ -65,16 +65,16 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
           dwInterface.sendCommandString(context, command, parameter)
           result.success(0);  //  DataWedge does not return responses
         }*/
-        "getPlatformVersion" -> {
-          result.success("12")
-        }
         "initScan" -> {
           createDataWedgeProfile("oh-green")
           result.success(true)
         }
         "doScan" -> {
-          //createIntentListener(result, context)
+          //startIntentListener(result, context)
           createMockResult(result)
+        }
+        "cancelScan" -> {
+          stopIntentListener(context)
         }
         else -> {
           result.notImplemented()
@@ -92,7 +92,7 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
     }, 3000)
   }
 
-  private fun createIntentListener(result: Result, context: Context) {
+  private fun startIntentListener(result: Result, context: Context) {
     dataWedgeBroadcastReceiver = createDataWedgeBroadcastReceiver(result, context)
     val intentFilter = IntentFilter()
     intentFilter.addAction(PROFILE_INTENT_ACTION)
@@ -100,6 +100,13 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
     intentFilter.addCategory(DataWedgeInterface.DATAWEDGE_RETURN_CATEGORY)
     context.registerReceiver(
       dataWedgeBroadcastReceiver, intentFilter)
+  }
+
+  private fun stopIntentListener(context: Context) {
+    if (dataWedgeBroadcastReceiver != null) {
+      context.unregisterReceiver(dataWedgeBroadcastReceiver)
+      dataWedgeBroadcastReceiver = null
+    }
   }
 
   /* private fun createDataWedgeBroadcastReceiver(events: EventSink?): BroadcastReceiver? {
