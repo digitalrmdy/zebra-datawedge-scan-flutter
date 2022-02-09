@@ -1,35 +1,174 @@
 package be.rmdy.zebra_datawedge_scan_flutter
 
+import android.content.*
+import android.os.Bundle
+import android.os.Handler
 import androidx.annotation.NonNull
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel.Result
+import org.json.JSONObject
+import java.util.*
 
 /** ZebraDatawedgeScanFlutterPlugin */
 class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
-  /// The MethodChannel that will the communication between Flutter and native Android
-  ///
-  /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-  /// when the Flutter Engine is detached from the Activity
-  private lateinit var channel : MethodChannel
+  private val OPERATION_CHANNEL = "be.rmdy.zebra_datawedge_scan_flutter/operation"
+  //private val RESULT_CHANNEL = "be.rmdy.zebra_datawedge_scan_flutter/result"
+  private val PROFILE_INTENT_ACTION = "be.rmdy.zebradatawedgescan.SCAN"
+  private val PROFILE_INTENT_BROADCAST = "3455"
+
+  private lateinit var operationChannel : MethodChannel
+  private lateinit var resultChannel : EventChannel
+  private lateinit var context: Context
+  private val dwInterface = DataWedgeInterface()
+
+  private var dataWedgeBroadcastReceiver: BroadcastReceiver? = null
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "zebra_datawedge_scan_flutter")
-    channel.setMethodCallHandler(this)
+    operationChannel = MethodChannel(flutterPluginBinding.binaryMessenger, OPERATION_CHANNEL)
+    operationChannel.setMethodCallHandler(this)
+
+   /* resultChannel = EventChannel(flutterPluginBinding.binaryMessenger, RESULT_CHANNEL)
+    resultChannel.setStreamHandler(
+      object : StreamHandler {
+        private var dataWedgeBroadcastReceiver: BroadcastReceiver? = null
+        override fun onListen(arguments: Any?, events: EventSink?) {
+          dataWedgeBroadcastReceiver = createDataWedgeBroadcastReceiver(events)
+          val intentFilter = IntentFilter()
+          intentFilter.addAction(PROFILE_INTENT_ACTION)
+          intentFilter.addAction(DataWedgeInterface.DATAWEDGE_RETURN_ACTION)
+          intentFilter.addCategory(DataWedgeInterface.DATAWEDGE_RETURN_CATEGORY)
+          context.registerReceiver(
+            dataWedgeBroadcastReceiver, intentFilter)
+        }
+
+        override fun onCancel(arguments: Any?) {
+          context.unregisterReceiver(dataWedgeBroadcastReceiver)
+          dataWedgeBroadcastReceiver = null
+        }
+      }
+    )*/
+
+    context = flutterPluginBinding.applicationContext
   }
 
   override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
-    if (call.method == "getPlatformVersion") {
-      result.success("Android ${android.os.Build.VERSION.RELEASE}")
-    } else {
-      result.notImplemented()
+    when (call.method) {
+        /*"sendDataWedgeCommandStringParameter" -> {
+          val arguments = JSONObject(call.arguments.toString())
+          val command: String = arguments.get("command") as String
+          val parameter: String = arguments.get("parameter") as String
+          dwInterface.sendCommandString(context, command, parameter)
+          result.success(0);  //  DataWedge does not return responses
+        }*/
+        "getPlatformVersion" -> {
+          result.success("12")
+        }
+        "initScan" -> {
+          createDataWedgeProfile("oh-green")
+          result.success(true)
+        }
+        "doScan" -> {
+          //createIntentListener(result, context)
+          createMockResult(result)
+        }
+        else -> {
+          result.notImplemented()
+        }
     }
   }
 
+  private fun createMockResult(result: Result) {
+    Handler().postDelayed({
+      val scanData = "72"
+      val symbology = "barcode"
+      val currentScan = Scan(scanData ?: "", symbology ?: "");
+      //todo, see if we need anything else than the value
+      result.success("72")
+    }, 3000)
+  }
+
+  private fun createIntentListener(result: Result, context: Context) {
+    dataWedgeBroadcastReceiver = createDataWedgeBroadcastReceiver(result, context)
+    val intentFilter = IntentFilter()
+    intentFilter.addAction(PROFILE_INTENT_ACTION)
+    intentFilter.addAction(DataWedgeInterface.DATAWEDGE_RETURN_ACTION)
+    intentFilter.addCategory(DataWedgeInterface.DATAWEDGE_RETURN_CATEGORY)
+    context.registerReceiver(
+      dataWedgeBroadcastReceiver, intentFilter)
+  }
+
+  /* private fun createDataWedgeBroadcastReceiver(events: EventSink?): BroadcastReceiver? {
+     return object : BroadcastReceiver() {
+       override fun onReceive(context: Context, intent: Intent) {
+         if (intent.action.equals(PROFILE_INTENT_ACTION))
+         {
+           //  A barcode has been scanned
+           var scanData = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_DATA_STRING)
+           var symbology = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_LABEL_TYPE)
+           var currentScan = Scan(scanData ?: "", symbology ?: "");
+           //todo, see if we need anything else than the value
+           //events?.success(currentScan.toJson())
+           events?.success(scanData)
+         }
+       }
+     }
+   }*/
+
+  private fun createDataWedgeBroadcastReceiver(result: Result, context: Context): BroadcastReceiver {
+    return object : BroadcastReceiver() {
+      override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action.equals(PROFILE_INTENT_ACTION))
+        {
+          val scanData = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_DATA_STRING)
+          val symbology = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_LABEL_TYPE)
+          val currentScan = Scan(scanData ?: "", symbology ?: "");
+          result.success(currentScan.toJson())
+          context.unregisterReceiver(dataWedgeBroadcastReceiver)
+          dataWedgeBroadcastReceiver = null
+        }
+      }
+    }
+  }
+
+  private fun createDataWedgeProfile(profileName: String) {
+    //  Create and configure the DataWedge profile associated with this application
+    //  For readability's sake, I have not defined each of the keys in the DWInterface file
+    dwInterface.sendCommandString(context, DataWedgeInterface.DATAWEDGE_SEND_CREATE_PROFILE, profileName)
+    val profileConfig = Bundle()
+    profileConfig.putString("PROFILE_NAME", profileName)
+    profileConfig.putString("PROFILE_ENABLED", "true") //  These are all strings
+    profileConfig.putString("CONFIG_MODE", "UPDATE")
+    val barcodeConfig = Bundle()
+    barcodeConfig.putString("PLUGIN_NAME", "BARCODE")
+    barcodeConfig.putString("RESET_CONFIG", "true") //  This is the default but never hurts to specify
+    val barcodeProps = Bundle()
+    barcodeConfig.putBundle("PARAM_LIST", barcodeProps)
+    profileConfig.putBundle("PLUGIN_CONFIG", barcodeConfig)
+    val appConfig = Bundle()
+    appConfig.putString("PACKAGE_NAME", context.packageName)      //  Associate the profile with this app
+    appConfig.putStringArray("ACTIVITY_LIST", arrayOf("*"))
+    profileConfig.putParcelableArray("APP_LIST", arrayOf(appConfig))
+    dwInterface.sendCommandBundle(context, DataWedgeInterface.DATAWEDGE_SEND_SET_CONFIG, profileConfig)
+    //  You can only configure one plugin at a time in some versions of DW, now do the intent output
+    profileConfig.remove("PLUGIN_CONFIG")
+    val intentConfig = Bundle()
+    intentConfig.putString("PLUGIN_NAME", "INTENT")
+    intentConfig.putString("RESET_CONFIG", "true")
+    val intentProps = Bundle()
+    intentProps.putString("intent_output_enabled", "true")
+    intentProps.putString("intent_action", PROFILE_INTENT_ACTION)
+    intentProps.putString("intent_delivery", PROFILE_INTENT_BROADCAST)
+    intentConfig.putBundle("PARAM_LIST", intentProps)
+    profileConfig.putBundle("PLUGIN_CONFIG", intentConfig)
+    dwInterface.sendCommandBundle(context, DataWedgeInterface.DATAWEDGE_SEND_SET_CONFIG, profileConfig)
+  }
+
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-    channel.setMethodCallHandler(null)
+    operationChannel.setMethodCallHandler(null)
   }
 }
