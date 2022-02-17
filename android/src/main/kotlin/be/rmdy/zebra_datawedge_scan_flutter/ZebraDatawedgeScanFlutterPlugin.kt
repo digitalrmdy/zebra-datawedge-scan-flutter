@@ -3,6 +3,7 @@ package be.rmdy.zebra_datawedge_scan_flutter
 import android.content.*
 import android.os.Bundle
 import android.os.Handler
+import android.util.Log
 import androidx.annotation.NonNull
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -19,7 +20,6 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
   private val OPERATION_CHANNEL = "be.rmdy.zebra_datawedge_scan_flutter/operation"
   //private val RESULT_CHANNEL = "be.rmdy.zebra_datawedge_scan_flutter/result"
   private val PROFILE_INTENT_ACTION = "be.rmdy.zebradatawedgescan.SCAN"
-  private val PROFILE_INTENT_BROADCAST = "3455"
 
   private lateinit var operationChannel : MethodChannel
   private lateinit var resultChannel : EventChannel
@@ -58,20 +58,13 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
 
   override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
     when (call.method) {
-        /*"sendDataWedgeCommandStringParameter" -> {
-          val arguments = JSONObject(call.arguments.toString())
-          val command: String = arguments.get("command") as String
-          val parameter: String = arguments.get("parameter") as String
-          dwInterface.sendCommandString(context, command, parameter)
-          result.success(0);  //  DataWedge does not return responses
-        }*/
         "initScan" -> {
           createDataWedgeProfile("oh-green")
           result.success(true)
         }
         "doScan" -> {
-          //startIntentListener(result, context)
-          createMockResult(result)
+          startIntentListener(result, context)
+          //createMockResult(result)
         }
         "cancelScan" -> {
           stopIntentListener(context)
@@ -169,7 +162,7 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
     val intentProps = Bundle()
     intentProps.putString("intent_output_enabled", "true")
     intentProps.putString("intent_action", PROFILE_INTENT_ACTION)
-    intentProps.putString("intent_delivery", PROFILE_INTENT_BROADCAST)
+    intentProps.putString("intent_delivery", "2")
     intentConfig.putBundle("PARAM_LIST", intentProps)
     profileConfig.putBundle("PLUGIN_CONFIG", intentConfig)
     dwInterface.sendCommandBundle(context, DataWedgeInterface.DATAWEDGE_SEND_SET_CONFIG, profileConfig)

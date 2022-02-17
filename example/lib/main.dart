@@ -27,7 +27,7 @@ class _MyAppState extends State<MyApp> {
   // Platform messages are asynchronous, so we initialize in an async method.
   Future<void> initPlatformState() async {
     //only makes sense on a Zebra device
-    //await ZebraDatawedgeScanFlutter.initScan();
+    await ZebraDatawedgeScanFlutter.initScan();
   }
 
 
