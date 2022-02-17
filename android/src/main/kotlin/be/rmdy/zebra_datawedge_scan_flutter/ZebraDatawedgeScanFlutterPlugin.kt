@@ -125,9 +125,7 @@ class ZebraDatawedgeScanFlutterPlugin: FlutterPlugin, MethodCallHandler {
         if (intent.action.equals(PROFILE_INTENT_ACTION))
         {
           val scanData = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_DATA_STRING)
-          val symbology = intent.getStringExtra(DataWedgeInterface.DATAWEDGE_SCAN_EXTRA_LABEL_TYPE)
-          val currentScan = Scan(scanData ?: "", symbology ?: "");
-          result.success(currentScan.toJson())
+          result.success(scanData)
           context.unregisterReceiver(dataWedgeBroadcastReceiver)
           dataWedgeBroadcastReceiver = null
         }
